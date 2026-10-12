@@ -1,0 +1,10 @@
+[
+  {
+    "id": 1,
+    "estudiante_id": 1,
+    "materia_id": 1,
+    "periodo": "2026-11",
+    "nota": 16.5,
+    "fecha": "2026-10-11"
+  }
+]

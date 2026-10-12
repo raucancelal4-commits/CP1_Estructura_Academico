@@ -1,0 +1,9 @@
+[
+  {
+    "id": 1,
+    "nombre": "Matematicas Discretas",
+    "codigo": "MAT0098",
+    "creditos": 4,
+    "cupos": 4
+  }
+]
