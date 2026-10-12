@@ -6,5 +6,29 @@
     "email": "raucancelal4@unemi.edu.ec",
     "carnet": "SOFT0095",
     "carrera": "Software"
+  },
+  {
+    "id": 2,
+    "nombre": "Brian",
+    "apellido": "Andrade",
+    "email": "bandre@unemi.edu.ec",
+    "carnet": "MED0098",
+    "carrera": "Medicina"
+  },
+  {
+    "id": 3,
+    "nombre": "Erick",
+    "apellido": "Arreaga",
+    "email": "marrega5@gmail.com",
+    "carnet": "BIOT0051",
+    "carrera": "Biotecnologia"
+  },
+  {
+    "id": 4,
+    "nombre": "Sofhy",
+    "apellido": "Andino",
+    "email": "andinosoy@gmail.com",
+    "carnet": "NUT09183",
+    "carrera": "Nutricion Y Dietetica"
   }
 ]

@@ -4,6 +4,27 @@
     "nombre": "Matematicas Discretas",
     "codigo": "MAT0098",
     "creditos": 4,
-    "cupos": 4
+    "cupos": 2
+  },
+  {
+    "id": 2,
+    "nombre": "Fisiologia",
+    "codigo": "FISIO0918",
+    "creditos": 10,
+    "cupos": 14
+  },
+  {
+    "id": 3,
+    "nombre": "Biotecnologia",
+    "codigo": "BIOT0910",
+    "creditos": 9,
+    "cupos": 17
+  },
+  {
+    "id": 4,
+    "nombre": "Alimentacion",
+    "codigo": "ALIM0918534",
+    "creditos": 10,
+    "cupos": 19
   }
 ]
