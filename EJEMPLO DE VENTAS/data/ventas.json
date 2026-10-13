@@ -1,0 +1,10 @@
+[
+  {
+    "id": 1,
+    "cliente_id": 2,
+    "producto_id": 2,
+    "cantidad": 2,
+    "precio_unitario": 0.75,
+    "fecha": "2026-10-10"
+  }
+]

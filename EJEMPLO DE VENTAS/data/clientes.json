@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "nombre": "Ronny",
+    "apellido": "Aucancela",
+    "email": "raucancelal4@gmail.com",
+    "telefono": "0998138945",
+    "ciudad": "Naranjito"
+  },
+  {
+    "id": 2,
+    "nombre": "Sofhy",
+    "apellido": "Andino",
+    "email": "abnido@unemi.edu.ec",
+    "telefono": "0981352680",
+    "ciudad": "Virgen Del Fatima"
+  }
+]

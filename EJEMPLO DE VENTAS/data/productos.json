@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "nombre": "Leche Condensada",
+    "precio": 1.5,
+    "stock": 100
+  },
+  {
+    "id": 2,
+    "nombre": "Gomitas",
+    "precio": 0.75,
+    "stock": 3
+  },
+  {
+    "id": 3,
+    "nombre": "Leche",
+    "precio": 1.0,
+    "stock": 50
+  },
+  {
+    "id": 4,
+    "nombre": "Platos",
+    "precio": 0.75,
+    "stock": 3
+  }
+]
