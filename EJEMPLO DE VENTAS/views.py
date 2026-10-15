@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from models import Cliente, Producto, Venta
+from models import Cliente, Producto, Venta, Devolucion 
 from shared.json_manager import GestorJSON
 from shared.herramientas import es_email_valido
 
@@ -437,4 +437,132 @@ class VentaController(CrudBase):
         total = 0
         for venta in self.lista:
             total += venta.calcular_total()
+        return round(total, 2)
+
+# =====================================================================
+# CONTROLADOR DE VENTAS
+# =====================================================================
+class DevolucionController(CrudBase):
+
+    def __init__(self, ventas, productos, archivo="data/devoluciones.json"):
+        # Usa las ventas (para saber qué se vendió) y los productos (para el stock)
+        self.ventas = ventas
+        self.productos = productos
+        self.gestor = GestorJSON(archivo)
+
+        self.lista = []
+        for datos in self.gestor.leer():
+            self.lista.append(Devolucion.desde_diccionario(datos))
+
+    def guardar(self):
+        datos = []
+        for devolucion in self.lista:
+            datos.append(devolucion.a_diccionario())
+        self.gestor.guardar(datos)
+
+    def ya_devuelto(self, venta_id):
+        """Cuántas unidades de esa venta ya se devolvieron (puede haber varias devoluciones)."""
+        total = 0
+        for devolucion in self.lista:
+            if devolucion.venta_id == venta_id:
+                total += devolucion.cantidad
+        return total
+
+    def validar(self, datos):
+        try:
+            venta_id = int(datos.get("venta_id", 0))
+            cantidad = int(datos.get("cantidad", 0))
+        except (TypeError, ValueError):
+            return "venta_id y cantidad deben ser números enteros"
+
+        venta = self.ventas.obtener(venta_id)
+        if venta is None:
+            return f"No existe la venta {venta_id}"
+        if cantidad <= 0:
+            return "La cantidad debe ser mayor a 0"
+
+        # No se puede devolver más de lo que se compró (contando devoluciones anteriores)
+        disponible = venta.cantidad - self.ya_devuelto(venta_id)
+        if cantidad > disponible:
+            return f"Solo se pueden devolver {disponible} unidad(es) de la venta {venta_id}"
+
+        # Métodos ESTÁTICOS de Devolucion: reglas que no dependen de una devolución concreta
+        if not Devolucion.es_motivo_valido(datos.get("motivo", "")):
+            return f"Motivo inválido. Opciones: {', '.join(Devolucion.MOTIVOS)}"
+        if not Devolucion.dentro_del_plazo(venta.fecha):
+            return f"Pasaron más de {Devolucion.DIAS_LIMITE} días desde la venta"
+        return None
+
+    def leer(self):
+        return self.lista
+
+    def obtener(self, id_devolucion):
+        for devolucion in self.lista:
+            if devolucion.id == id_devolucion:
+                return devolucion
+        return None
+
+    def buscar(self, texto):
+        # Se buscan por motivo, ej: "defectuoso"
+        texto = texto.strip().lower()
+        encontradas = []
+        if texto == "":
+            return encontradas
+        for devolucion in self.lista:
+            if texto in devolucion.motivo:
+                encontradas.append(devolucion)
+        return encontradas
+
+    def siguiente(self):
+        mayor = 0
+        for devolucion in self.lista:
+            if devolucion.id > mayor:
+                mayor = devolucion.id
+        return mayor + 1
+
+    def crear(self, datos):
+        # datos = {"venta_id": 1, "cantidad": 2, "motivo": "arrepentido"}
+        error = self.validar(datos)
+        if error:
+            return False, error
+
+        venta = self.ventas.obtener(int(datos["venta_id"]))
+        cantidad = int(datos["cantidad"])
+        # Reembolso = lo que pagó por esas unidades, CON IVA
+        monto = Producto.con_iva(cantidad * venta.precio_unitario)
+        devolucion = Devolucion(self.siguiente(), venta.id, cantidad,
+                                str(datos["motivo"]).strip().lower(), monto)
+
+        # Si el producto NO es defectuoso, vuelve al stock
+        if devolucion.regresa_al_stock():
+            producto = self.productos.obtener(venta.producto_id)
+            if producto is not None:
+                producto.devolver_stock(cantidad)
+                self.productos.guardar()
+
+        self.lista.append(devolucion)
+        self.guardar()
+        return True, f"Devolución {devolucion.id} registrada: reembolso ${devolucion.monto:.2f}"
+
+    def actualizar(self, id_devolucion, datos):
+        # Igual que las ventas: una devolución registrada no se modifica
+        return False, "Las devoluciones no se pueden modificar"
+
+    def eliminar(self, id_devolucion):
+        # Para no complicar el stock, una devolución registrada tampoco se borra
+        return False, "Las devoluciones no se pueden eliminar"
+
+    # --- propio de devoluciones ---
+    # [CAMBIO - DEVOLUCION] Todas las devoluciones de UNA venta
+    def devoluciones_de_venta(self, venta_id):
+        encontradas = []
+        for devolucion in self.lista:
+            if devolucion.venta_id == venta_id:
+                encontradas.append(devolucion)
+        return encontradas
+
+    def total_reembolsado(self):
+        total = 0
+        for devolucion in self.lista:
+            total += devolucion.monto
         return round(total, 2)

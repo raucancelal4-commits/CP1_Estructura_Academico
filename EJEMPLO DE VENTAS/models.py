@@ -165,3 +165,53 @@ class Venta(ModeloBase):
         return (f"{self.fecha} · cliente {self.cliente_id} · "
                 f"{self.cantidad} x producto {self.producto_id} "
                 f"= ${self.calcular_total():.2f}")
+
+
+# =====================================================================
+# DEVOLUCIÓN: el cliente regresa parte o todo lo que compró
+# =====================================================================
+class Devolucion(ModeloBase):
+    """Devolución de una venta. Se relaciona con la venta por id.
+    Una venta puede tener varias devoluciones parciales."""
+
+    # ATRIBUTOS ESTÁTICOS: reglas del negocio, iguales para todas las devoluciones
+    DIAS_LIMITE = 30                                        # plazo para devolver
+    MOTIVOS = ("defectuoso", "equivocado", "arrepentido")   # TUPLA: no cambian
+
+    def __init__(self, id_registro, venta_id, cantidad, motivo, monto, fecha=""):
+        super().__init__(id_registro)
+        self.venta_id = int(venta_id)
+        self.cantidad = int(cantidad)
+        self.motivo = motivo
+        self.monto = round(float(monto), 2)    # foto del reembolso CON IVA del momento
+        self.fecha = fecha or date.today().isoformat()
+
+    # MÉTODOS ESTÁTICOS: reglas que no dependen de ninguna devolución concreta
+    @staticmethod
+    def es_motivo_valido(motivo):
+        return str(motivo).strip().lower() in Devolucion.MOTIVOS
+
+    @staticmethod
+    def dentro_del_plazo(fecha_venta, fecha_hoy=None):
+        """True si desde la venta pasaron DIAS_LIMITE días o menos."""
+        hoy = date.fromisoformat(fecha_hoy) if fecha_hoy else date.today()
+        dias = (hoy - date.fromisoformat(fecha_venta)).days
+        return 0 <= dias <= Devolucion.DIAS_LIMITE
+
+    # MÉTODO DE INSTANCIA: ¿el producto vuelve al estante?
+    def regresa_al_stock(self):
+        # Un producto defectuoso se reembolsa, pero NO se vuelve a vender
+        return self.motivo != "defectuoso"
+
+    def a_diccionario(self):
+        datos = super().a_diccionario()
+        datos["venta_id"] = self.venta_id
+        datos["cantidad"] = self.cantidad
+        datos["motivo"] = self.motivo
+        datos["monto"] = self.monto
+        datos["fecha"] = self.fecha
+        return datos
+
+    def etiqueta(self):
+        return (f"{self.fecha} · venta {self.venta_id} · "
+                f"{self.cantidad} unidad(es) · {self.motivo} · -${self.monto:.2f}")
