@@ -6,5 +6,13 @@
     "motivo": "arrepentido",
     "monto": 1.72,
     "fecha": "2026-10-15"
+  },
+  {
+    "id": 2,
+    "venta_id": 2,
+    "cantidad": 10,
+    "motivo": "defectuoso",
+    "monto": 11.5,
+    "fecha": "2026-10-18"
   }
 ]

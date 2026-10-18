@@ -439,8 +439,9 @@ class VentaController(CrudBase):
             total += venta.calcular_total()
         return round(total, 2)
 
+
 # =====================================================================
-# CONTROLADOR DE VENTAS
+# CONTROLADOR DE DEVOLUCIONES
 # =====================================================================
 class DevolucionController(CrudBase):
 
@@ -460,13 +461,21 @@ class DevolucionController(CrudBase):
             datos.append(devolucion.a_diccionario())
         self.gestor.guardar(datos)
 
-    def ya_devuelto(self, venta_id):
-        """Cuántas unidades de esa venta ya se devolvieron (puede haber varias devoluciones)."""
+    def cantidad_devuelta(self, venta_id):
+        """Suma de las unidades que ya se devolvieron de esa venta."""
         total = 0
-        for devolucion in self.lista:
-            if devolucion.venta_id == venta_id:
-                total += devolucion.cantidad
+        for devolucion in self.devoluciones_de_venta(venta_id):
+            total += devolucion.cantidad
         return total
+
+    def cantidad_disponible(self, venta):
+        """Cuántas unidades todavía se pueden devolver.
+        NO se guarda en ningún archivo: se calcula (vendido - devuelto)."""
+        return venta.cantidad - self.cantidad_devuelta(venta.id)
+
+    def calcular_reembolso(self, venta, cantidad):
+        """Reembolso CON IVA. Usa el precio de la VENTA, no el precio actual del producto."""
+        return Producto.con_iva(cantidad * venta.precio_unitario)
 
     def validar(self, datos):
         try:
@@ -475,22 +484,26 @@ class DevolucionController(CrudBase):
         except (TypeError, ValueError):
             return "venta_id y cantidad deben ser números enteros"
 
+        # Las reglas se revisan en este orden: venta, plazo, cantidad, motivo
+        # 1. La venta tiene que existir
         venta = self.ventas.obtener(venta_id)
         if venta is None:
             return f"No existe la venta {venta_id}"
-        if cantidad <= 0:
-            return "La cantidad debe ser mayor a 0"
 
-        # No se puede devolver más de lo que se compró (contando devoluciones anteriores)
-        disponible = venta.cantidad - self.ya_devuelto(venta_id)
-        if cantidad > disponible:
-            return f"Solo se pueden devolver {disponible} unidad(es) de la venta {venta_id}"
-
-        # Métodos ESTÁTICOS de Devolucion: reglas que no dependen de una devolución concreta
-        if not Devolucion.es_motivo_valido(datos.get("motivo", "")):
-            return f"Motivo inválido. Opciones: {', '.join(Devolucion.MOTIVOS)}"
+        # 2. Tiene que estar dentro del plazo (método ESTÁTICO de Devolucion)
         if not Devolucion.dentro_del_plazo(venta.fecha):
             return f"Pasaron más de {Devolucion.DIAS_LIMITE} días desde la venta"
+
+        # 3. La cantidad no puede ser mayor a lo que todavía queda por devolver
+        if cantidad <= 0:
+            return "La cantidad debe ser mayor a 0"
+        disponible = self.cantidad_disponible(venta)
+        if cantidad > disponible:
+            return f"Solo se pueden devolver {disponible} unidad(es)"
+
+        # 4. El motivo tiene que ser uno de la tupla Devolucion.MOTIVOS
+        if not Devolucion.es_motivo_valido(datos.get("motivo", "")):
+            return f"Motivo inválido. Opciones: {', '.join(Devolucion.MOTIVOS)}"
         return None
 
     def leer(self):
@@ -503,13 +516,13 @@ class DevolucionController(CrudBase):
         return None
 
     def buscar(self, texto):
-        # Se buscan por motivo, ej: "defectuoso"
+        # Se buscan por fecha ("2026-10") o por motivo ("defectuoso")
         texto = texto.strip().lower()
         encontradas = []
         if texto == "":
             return encontradas
         for devolucion in self.lista:
-            if texto in devolucion.motivo:
+            if texto in devolucion.fecha or texto in devolucion.motivo:
                 encontradas.append(devolucion)
         return encontradas
 
@@ -529,7 +542,7 @@ class DevolucionController(CrudBase):
         venta = self.ventas.obtener(int(datos["venta_id"]))
         cantidad = int(datos["cantidad"])
         # Reembolso = lo que pagó por esas unidades, CON IVA
-        monto = Producto.con_iva(cantidad * venta.precio_unitario)
+        monto = self.calcular_reembolso(venta, cantidad)
         devolucion = Devolucion(self.siguiente(), venta.id, cantidad,
                                 str(datos["motivo"]).strip().lower(), monto)
 
@@ -542,7 +555,7 @@ class DevolucionController(CrudBase):
 
         self.lista.append(devolucion)
         self.guardar()
-        return True, f"Devolución {devolucion.id} registrada: reembolso ${devolucion.monto:.2f}"
+        return True, f"Devolución {devolucion.id} registrada · reembolso ${devolucion.monto:.2f}"
 
     def actualizar(self, id_devolucion, datos):
         # Igual que las ventas: una devolución registrada no se modifica
@@ -566,3 +579,51 @@ class DevolucionController(CrudBase):
         for devolucion in self.lista:
             total += devolucion.monto
         return round(total, 2)
+
+    def reembolsado_de_venta(self, venta_id):
+        """Cuánto dinero se ha reembolsado de UNA venta."""
+        total = 0
+        for devolucion in self.devoluciones_de_venta(venta_id):
+            total += devolucion.monto
+        return round(total, 2)
+
+    def ventas_netas(self):
+        """Lo vendido menos lo reembolsado. Los dos con IVA para poder compararlos."""
+        vendido_con_iva = Producto.con_iva(self.ventas.total_vendido())
+        return round(vendido_con_iva - self.total_reembolsado(), 2)
+
+    def devoluciones_por_motivo(self):
+        """DICCIONARIO de LISTAS: {motivo: [devoluciones con ese motivo]}.
+        Diccionario porque se consulta por clave (el motivo);
+        lista porque cada motivo puede tener varias devoluciones."""
+        agrupadas = {}
+        for devolucion in self.lista:
+            if devolucion.motivo not in agrupadas:
+                agrupadas[devolucion.motivo] = []
+            agrupadas[devolucion.motivo].append(devolucion)
+        return agrupadas
+
+    def nota_credito(self, id_devolucion):
+        """Texto del comprobante de la devolución. Devuelve None si no existe."""
+        devolucion = self.obtener(id_devolucion)
+        if devolucion is None:
+            return None
+
+        venta = self.ventas.obtener(devolucion.venta_id)
+        cliente = self.ventas.clientes.obtener(venta.cliente_id) if venta else None
+        producto = self.productos.obtener(venta.producto_id) if venta else None
+        precio = venta.precio_unitario if venta else 0
+
+        texto = f"NOTA DE CRÉDITO #{devolucion.id}   fecha: {devolucion.fecha}\n"
+        texto += (f"Venta    : #{devolucion.venta_id}   "
+                  f"({cliente.nombre_completo() if cliente else 'cliente eliminado'})\n")
+        texto += f"Producto : {producto.nombre if producto else 'eliminado'}\n"
+        texto += f"Devuelto : {devolucion.cantidad} x ${precio:.2f}\n"
+        texto += f"Motivo   : {devolucion.motivo}\n"
+        texto += "-" * 42 + "\n"
+        texto += f"REEMBOLSO con IVA: ${devolucion.monto:.2f}\n"
+        if devolucion.regresa_al_stock():
+            texto += "Stock    : regresa al inventario"
+        else:
+            texto += "Stock    : no regresa (producto defectuoso)"
+        return texto

@@ -1,6 +1,7 @@
 from shared.herramientas import (
     imprimir_titulo, imprimir_exito, imprimir_error, imprimir_info, confirmar
 )
+from models import Devolucion
 from views import ClienteController, ProductoController, VentaController, DevolucionController
 
 # Se crea UN solo controlador de cada tipo.
@@ -268,24 +269,58 @@ def resumen():
     print(f"  Vendido   : ${ventas.total_vendido():.2f}")
     pausa()
 
+
 # =====================================================================
-# [CAMBIO - DEVOLUCION] MENÚ DE DEVOLUCIONES
+# MENÚ DE DEVOLUCIONES
 # =====================================================================
 
 def registrar_devolucion():
     imprimir_titulo("REGISTRAR DEVOLUCIÓN")
-    imprimir_info("Ventas:")
-    mostrar_lista(ventas.leer())
 
-    datos = {
-        "venta_id": pedir_entero("\nId de la venta: "),
-        "cantidad": pedir_entero("Cantidad a devolver: "),
-    }
-    if None in datos.values():
-        imprimir_error("La venta y la cantidad deben ser números enteros")
+    # Paso 1: pedir el número de la venta
+    id_venta = pedir_entero("Id de la venta / factura: ")
+    if id_venta is None:
+        imprimir_error("El id debe ser un número entero")
         return pausa()
-    datos["motivo"] = input("Motivo (defectuoso / equivocado / arrepentido): ")
 
+    # Paso 2: mostrar la factura (la arma ventas; aquí solo se imprime)
+    factura = ventas.comprobante(id_venta)
+    if factura is None:
+        imprimir_error("No existe esa venta")
+        return pausa()
+    print(factura)
+
+    # Paso 3: mostrar cuánto se vendió, cuánto ya se devolvió y cuánto queda
+    venta = ventas.obtener(id_venta)
+    devuelto = devoluciones.cantidad_devuelta(id_venta)
+    disponible = devoluciones.cantidad_disponible(venta)
+    imprimir_info(f"Vendidas: {venta.cantidad} · Ya devueltas: {devuelto} · "
+                  f"Disponibles para devolver: {disponible}")
+    if disponible == 0:
+        imprimir_error("Esta venta ya no tiene unidades por devolver")
+        return pausa()
+
+    # Paso 4: pedir la cantidad
+    cantidad = pedir_entero("Cantidad a devolver: ")
+    if cantidad is None:
+        imprimir_error("La cantidad debe ser un número entero")
+        return pausa()
+
+    # Paso 5: mostrar los motivos recorriendo la tupla Devolucion.MOTIVOS
+    print("Motivos:")
+    for numero, motivo in enumerate(Devolucion.MOTIVOS, start=1):
+        print(f"  {numero}. {motivo}")
+    opcion = pedir_entero("Motivo: ")
+    if opcion is None or not 1 <= opcion <= len(Devolucion.MOTIVOS):
+        imprimir_error("Motivo inválido")
+        return pausa()
+
+    # Paso 6: el controlador valida y registra; aquí solo se muestra el resultado
+    datos = {
+        "venta_id": id_venta,
+        "cantidad": cantidad,
+        "motivo": Devolucion.MOTIVOS[opcion - 1],
+    }
     mostrar_resultado(*devoluciones.crear(datos))
     pausa()
 
@@ -296,7 +331,16 @@ def listar_devoluciones():
     pausa()
 
 
-# [CAMBIO - DEVOLUCION] Consultar las devoluciones de UNA venta
+def ver_nota_credito():
+    imprimir_titulo("NOTA DE CRÉDITO")
+    texto = devoluciones.nota_credito(pedir_entero("Id de la devolución: "))
+    if texto is None:
+        imprimir_error("No existe esa devolución")
+    else:
+        print(texto)
+    pausa()
+
+
 def consultar_devoluciones():
     imprimir_titulo("DEVOLUCIONES DE UNA VENTA")
     id_venta = pedir_entero("Id de la venta: ")
@@ -305,14 +349,16 @@ def consultar_devoluciones():
         imprimir_error("No existe esa venta")
         return pausa()
 
-    imprimir_info(f"Venta: {venta.etiqueta()}")
+    # Factura de la venta y debajo sus devoluciones
+    print(ventas.comprobante(id_venta))
+    print()
     encontradas = devoluciones.devoluciones_de_venta(id_venta)
     mostrar_lista(encontradas, "Esta venta no tiene devoluciones.")
 
-    # Cuánto se devolvió y cuánto queda por devolver
-    devuelto = devoluciones.ya_devuelto(id_venta)
-    imprimir_info(f"Unidades devueltas: {devuelto} de {venta.cantidad} "
-                  f"(quedan {venta.cantidad - devuelto})")
+    imprimir_info(f"Total reembolsado de esta venta: "
+                  f"${devoluciones.reembolsado_de_venta(id_venta):.2f}")
+    imprimir_info(f"Unidades devueltas: {devoluciones.cantidad_devuelta(id_venta)} de "
+                  f"{venta.cantidad} (disponibles: {devoluciones.cantidad_disponible(venta)})")
     pausa()
 
 
@@ -325,9 +371,10 @@ def resumen():
     print(f"  Stock bajo: {', '.join(p.nombre for p in bajos) or 'ninguno'}")
     print(f"  Ventas    : {len(ventas.leer())}")
     print(f"  Vendido   : ${ventas.total_vendido():.2f}")
-    # [CAMBIO - DEVOLUCION] Datos de devoluciones en el resumen
+    # Datos de devoluciones en el resumen
     print(f"  Devoluciones: {len(devoluciones.leer())}")
     print(f"  Reembolsado : ${devoluciones.total_reembolsado():.2f}")
+    print(f"  Ventas netas: ${devoluciones.ventas_netas():.2f}")
     pausa()
 
 
@@ -368,6 +415,7 @@ MENU_DEVOLUCIONES = {
     "1": ("Registrar devolución", registrar_devolucion),
     "2": ("Consultar devoluciones de una venta", consultar_devoluciones),
     "3": ("Ver todas", listar_devoluciones),
+    "4": ("Ver nota de crédito", ver_nota_credito),
     "0": ("Volver", None),
 }
 

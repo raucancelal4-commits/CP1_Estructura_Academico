@@ -6,5 +6,13 @@
     "cantidad": 2,
     "precio_unitario": 0.75,
     "fecha": "2026-10-10"
+  },
+  {
+    "id": 2,
+    "cliente_id": 2,
+    "producto_id": 3,
+    "cantidad": 19,
+    "precio_unitario": 1.0,
+    "fecha": "2026-10-18"
   }
 ]
